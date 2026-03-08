@@ -13,6 +13,7 @@ import openpyxl
 import xlrd
 import yaml
 from cachalot.api import cachalot_disabled
+from django.conf import settings
 from django.utils import timezone
 from openpyxl.utils.exceptions import InvalidFileException
 
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImportService:
-    TEMP_DIR = "/usr/src/app/temp"
+    TEMP_DIR = os.getenv("IMPORT_TEMP_DIR", str(settings.BASE_DIR / "temp"))
 
     def __init__(self, import_run: ImportRun):
         self.import_run: ImportRun = import_run

@@ -335,6 +335,10 @@ DJANGO_VITE_DEV_MODE = os.getenv("DJANGO_VITE_DEV_MODE", "false").lower() == "tr
 DJANGO_VITE_DEV_SERVER_PORT = int(os.getenv("DJANGO_VITE_DEV_SERVER_PORT", "5173"))
 DJANGO_VITE_DEV_SERVER_HOST = os.getenv("DJANGO_VITE_DEV_SERVER_HOST", "localhost")
 
+# Tests should not require a built Vite manifest.
+if "test" in sys.argv:
+    DJANGO_VITE_DEV_MODE = True
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 

@@ -1,7 +1,9 @@
 {% load i18n %}
 
 <div hx-get="{% url 'insights_year_by_year' %}" hx-trigger="updated from:window" class="show-loading"
-     hx-swap="outerHTML" hx-include="#group-by-selector">
+     hx-swap="outerHTML" hx-include="#group-by-selector, #view-type-selector-year, #account-selector-year">
+  <input type="hidden" name="account" id="account-selector-year" value="{{ selected_account }}" _="on change trigger updated">
+
   <div class="h-full text-center mb-4">
     <div class="tabs tabs-box mx-auto w-fit" role="group" id="group-by-selector" _="on change trigger updated">
       <label class="tab">
@@ -40,12 +42,80 @@
     </div>
   </div>
 
+  <div class="h-full text-center mb-4">
+    <div class="tabs tabs-box mx-auto w-fit" role="group" id="view-type-selector-year" _="on change trigger updated">
+      <label class="tab">
+        <input type="radio"
+               name="view_type"
+               autocomplete="off"
+               value="table"
+               aria-label="{% trans 'Table' %}"
+               {% if view_type == "table" %}checked{% endif %}>
+        <i class="fa-solid fa-table fa-fw me-2"></i>
+        {% trans 'Table' %}
+      </label>
+      <label class="tab">
+        <input type="radio"
+               name="view_type"
+               autocomplete="off"
+               value="graph"
+               aria-label="{% trans 'Graph' %}"
+               {% if view_type == "graph" %}checked{% endif %}>
+        <i class="fa-solid fa-chart-line fa-fw me-2"></i>
+        {% trans 'Graph' %}
+      </label>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <div>
+      <button class="btn btn-ghost" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fa-solid fa-wallet fa-fw me-1"></i>
+        {% if selected_account %}
+          {% for account in accounts %}
+            {% if account.id|stringformat:"s" == selected_account %}
+              {{ account.name }}
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          {% trans 'All' %}
+        {% endif %}
+        <i class="fa-solid fa-chevron-down fa-fw ms-1"></i>
+      </button>
+      <ul class="dropdown-menu menu">
+        <li>
+          <button class="{% if not selected_account %}menu-active{% endif %}" type="button"
+                  _="on click
+                    remove .menu-active from <li > button/> in the closest <ul/>
+                    then add .menu-active to me
+                    then set the value of #account-selector-year to ''
+                    then trigger change on #account-selector-year">
+            {% trans 'All' %}
+          </button>
+        </li>
+        {% for account in accounts %}
+          <li>
+            <button class="{% if account.id|stringformat:'s' == selected_account %}menu-active{% endif %}" type="button"
+                    _="on click
+                      remove .menu-active from <li > button/> in the closest <ul/>
+                      then add .menu-active to me
+                      then set the value of #account-selector-year to '{{ account.id }}'
+                      then trigger change on #account-selector-year">
+              {% if account.group %}<span class="badge badge-primary badge-outline">{{ account.group.name }}</span>{% endif %} {{ account.name }}
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
   {% if data.years %}
-    <div class="card bg-base-100 card-border">
-      <div class="card-body">
-        <div class="overflow-x-auto">
-          <table class="table">
-            <thead>
+    {% if view_type == "table" %}
+      <div class="card bg-base-100 card-border">
+        <div class="card-body">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
               <tr>
                 <th scope="col" class="sticky left-0 bg-base-100 z-10">
                   {% if group_by == "categories" %}
@@ -61,8 +131,8 @@
                   <th scope="col">{{ year }}</th>
                 {% endfor %}
               </tr>
-            </thead>
-            <tbody>
+              </thead>
+              <tbody>
               {% for item_id, item in data.items.items %}
                 <tr>
                   <th class="text-nowrap sticky left-0 bg-base-100 z-10">
@@ -78,7 +148,6 @@
                       {% endif %}
                     {% endif %}
                   </th>
-                  {# Total column for this item #}
                   <td class="text-nowrap font-semibold bg-base-200">
                     {% for currency_id, currency_data in item.total.currencies.items %}
                       <c-amount.display
@@ -100,7 +169,6 @@
                       -
                     {% endfor %}
                   </td>
-                  {# Year columns #}
                   {% for year in data.years %}
                     <td class="text-nowrap">
                       {% with year_data=item.year_totals %}
@@ -134,11 +202,10 @@
                   {% endfor %}
                 </tr>
               {% endfor %}
-            </tbody>
-            <tfoot>
+              </tbody>
+              <tfoot>
               <tr class="font-bold bg-base-200">
                 <th class="sticky left-0 bg-base-200 z-10">{% trans 'Total' %}</th>
-                {# Grand total #}
                 <td class="text-nowrap bg-base-300">
                   {% for currency_id, currency_data in data.grand_total.currencies.items %}
                     <c-amount.display
@@ -160,7 +227,6 @@
                     -
                   {% endfor %}
                 </td>
-                {# Year totals #}
                 {% for year in data.years %}
                   <td class="text-nowrap">
                     {% with year_total=data.year_totals %}
@@ -193,11 +259,79 @@
                   </td>
                 {% endfor %}
               </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    {% else %}
+      <div class="card bg-base-100 card-border">
+        <div class="card-body">
+          <div class="chart-container relative min-h-[50vh] w-full" _="init call setupYearByYearChart() end">
+            <canvas id="yearByYearChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      {{ data.chart|json_script:"yearByYearChartData" }}
+
+      <script>
+          function setupYearByYearChart() {
+              const chartData = JSON.parse(document.getElementById('yearByYearChartData').textContent);
+
+              new Chart(document.getElementById('yearByYearChart'), {
+                  type: 'line',
+                  data: {
+                      labels: chartData.labels,
+                      datasets: chartData.datasets
+                  },
+                  options: {
+                      maintainAspectRatio: false,
+                      responsive: true,
+                      interaction: {
+                          mode: 'index',
+                          intersect: false
+                      },
+                      plugins: {
+                          legend: {
+                              position: 'top'
+                          },
+                          tooltip: {
+                              callbacks: {
+                                  label: function (context) {
+                                      const details = context.dataset.currency;
+                                      if (!details || context.parsed.y === null || context.parsed.y === undefined) {
+                                          return null;
+                                      }
+
+                                      let formattedValue = '';
+                                      try {
+                                          formattedValue = new Intl.NumberFormat(undefined, {
+                                              minimumFractionDigits: details.decimal_places,
+                                              maximumFractionDigits: details.decimal_places
+                                          }).format(context.parsed.y);
+                                      } catch (e) {
+                                          formattedValue = context.parsed.y;
+                                      }
+
+                                      return `${details.name}: ${details.prefix}${formattedValue}${details.suffix}`;
+                                  }
+                              }
+                          }
+                      },
+                      scales: {
+                          y: {
+                              title: {
+                                  display: true,
+                                  text: '{% trans 'Final Total' %}'
+                              }
+                          }
+                      }
+                  }
+              });
+          }
+      </script>
+    {% endif %}
   {% else %}
     <c-msg.empty title="{% translate 'No transactions' %}"></c-msg.empty>
   {% endif %}

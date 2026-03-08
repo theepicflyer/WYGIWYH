@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from apps.common.decorators.htmx import only_htmx
+from apps.accounts.models import Account
 from apps.insights.forms import (
     SingleMonthForm,
     SingleYearForm,
@@ -320,11 +321,35 @@ def year_by_year(request):
     else:
         group_by = request.session.get("insights_year_by_year_group_by", "categories")
 
+    if "view_type" in request.GET:
+        view_type = request.GET["view_type"]
+        request.session["insights_year_by_year_view_type"] = view_type
+    else:
+        view_type = request.session.get("insights_year_by_year_view_type", "table")
+
+    if "account" in request.GET:
+        selected_account = request.GET.get("account", "")
+        request.session["insights_year_by_year_account_id"] = selected_account
+    else:
+        selected_account = request.session.get("insights_year_by_year_account_id", "")
+
     # Validate group_by value
     if group_by not in ("categories", "tags", "entities"):
         group_by = "categories"
+        request.session["insights_year_by_year_group_by"] = group_by
 
-    data = get_year_by_year_data(group_by=group_by)
+    if view_type not in ("table", "graph"):
+        view_type = "table"
+        request.session["insights_year_by_year_view_type"] = view_type
+
+    accounts = Account.objects.filter(is_archived=False).select_related("group")
+    account_ids = {str(account.id) for account in accounts}
+    if selected_account and selected_account not in account_ids:
+        selected_account = ""
+        request.session["insights_year_by_year_account_id"] = ""
+
+    account_id = int(selected_account) if selected_account else None
+    data = get_year_by_year_data(group_by=group_by, account_id=account_id)
 
     return render(
         request,
@@ -332,6 +357,9 @@ def year_by_year(request):
         {
             "data": data,
             "group_by": group_by,
+            "view_type": view_type,
+            "accounts": accounts,
+            "selected_account": selected_account,
         },
     )
 
@@ -340,20 +368,6 @@ def year_by_year(request):
 @login_required
 @require_http_methods(["GET"])
 def month_by_month(request):
-    # Handle year selection
-    if "year" in request.GET:
-        try:
-            year = int(request.GET["year"])
-            request.session["insights_month_by_month_year"] = year
-        except (ValueError, TypeError):
-            year = request.session.get(
-                "insights_month_by_month_year", timezone.localdate(timezone.now()).year
-            )
-    else:
-        year = request.session.get(
-            "insights_month_by_month_year", timezone.localdate(timezone.now()).year
-        )
-
     # Handle group_by selection
     if "group_by" in request.GET:
         group_by = request.GET["group_by"]
@@ -361,11 +375,35 @@ def month_by_month(request):
     else:
         group_by = request.session.get("insights_month_by_month_group_by", "categories")
 
+    if "view_type" in request.GET:
+        view_type = request.GET["view_type"]
+        request.session["insights_month_by_month_view_type"] = view_type
+    else:
+        view_type = request.session.get("insights_month_by_month_view_type", "table")
+
+    if "account" in request.GET:
+        selected_account = request.GET.get("account", "")
+        request.session["insights_month_by_month_account_id"] = selected_account
+    else:
+        selected_account = request.session.get("insights_month_by_month_account_id", "")
+
     # Validate group_by value
     if group_by not in ("categories", "tags", "entities"):
         group_by = "categories"
+        request.session["insights_month_by_month_group_by"] = group_by
 
-    data = get_month_by_month_data(year=year, group_by=group_by)
+    if view_type not in ("table", "graph"):
+        view_type = "table"
+        request.session["insights_month_by_month_view_type"] = view_type
+
+    accounts = Account.objects.filter(is_archived=False).select_related("group")
+    account_ids = {str(account.id) for account in accounts}
+    if selected_account and selected_account not in account_ids:
+        selected_account = ""
+        request.session["insights_month_by_month_account_id"] = ""
+
+    account_id = int(selected_account) if selected_account else None
+    data = get_month_by_month_data(group_by=group_by, account_id=account_id)
 
     return render(
         request,
@@ -373,6 +411,8 @@ def month_by_month(request):
         {
             "data": data,
             "group_by": group_by,
-            "selected_year": year,
+            "view_type": view_type,
+            "accounts": accounts,
+            "selected_account": selected_account,
         },
     )

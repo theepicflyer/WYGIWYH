@@ -10,7 +10,7 @@ from apps.currencies.utils.convert import convert
 from apps.transactions.models import Transaction
 
 
-def get_year_by_year_data(group_by="categories"):
+def get_year_by_year_data(group_by="categories", account_id=None):
     """
     Aggregate transaction totals by year for categories, tags, or entities.
 
@@ -44,6 +44,9 @@ def get_year_by_year_data(group_by="categories"):
         account__is_archived=False,
     ).exclude(account__currency__is_archived=True)
 
+    if account_id:
+        transactions = transactions.filter(account_id=account_id)
+
     # Define grouping fields based on group_by parameter
     if group_by == "tags":
         group_field = "tags"
@@ -69,6 +72,7 @@ def get_year_by_year_data(group_by="categories"):
             "items": {},
             "year_totals": {},
             "grand_total": {"currencies": {}},
+            "chart": {"labels": [], "datasets": []},
         }
 
     # Aggregate by group, year, and currency
@@ -300,4 +304,34 @@ def get_year_by_year_data(group_by="categories"):
                     },
                 }
 
+    result["chart"] = _build_year_chart_data(result["years"], result["year_totals"])
+
     return result
+
+
+def _build_year_chart_data(years, year_totals):
+    datasets_map = OrderedDict()
+
+    for year in years:
+        for currency_id, currency_data in year_totals.get(year, {}).get(
+            "currencies", {}
+        ).items():
+            if currency_id not in datasets_map:
+                datasets_map[currency_id] = {
+                    "label": currency_data["currency"]["code"],
+                    "data": [None] * len(years),
+                    "currency": currency_data["currency"],
+                }
+
+    for year_index, year in enumerate(years):
+        for currency_id, currency_data in year_totals.get(year, {}).get(
+            "currencies", {}
+        ).items():
+            datasets_map[currency_id]["data"][year_index] = float(
+                currency_data["final_total"]
+            )
+
+    return {
+        "labels": [str(year) for year in years],
+        "datasets": list(datasets_map.values()),
+    }

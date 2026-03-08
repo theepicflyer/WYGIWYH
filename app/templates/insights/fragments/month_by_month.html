@@ -1,12 +1,9 @@
 {% load i18n %}
 
 <div hx-get="{% url 'insights_month_by_month' %}" hx-trigger="updated from:window" class="show-loading"
-     hx-swap="outerHTML" hx-include="#year-selector, #group-by-selector-month">
-  
-  {# Hidden input to hold the year value #}
-  <input type="hidden" name="year" id="year-selector" value="{{ selected_year }}" _="on change trigger updated">
+     hx-swap="outerHTML" hx-include="#group-by-selector-month, #view-type-selector-month, #account-selector-month">
+  <input type="hidden" name="account" id="account-selector-month" value="{{ selected_account }}" _="on change trigger updated">
 
-  {# Tabs for Categories/Tags/Entities #}
   <div class="h-full text-center mb-4">
     <div class="tabs tabs-box mx-auto w-fit" role="group" id="group-by-selector-month" _="on change trigger updated">
       <label class="tab">
@@ -45,39 +42,80 @@
     </div>
   </div>
 
-  {% if data.items %}
-    <div class="card bg-base-100 card-border">
-      <div class="card-body">
-        {# Year dropdown - left aligned #}
-        {% if data.available_years %}
-          <div class="mb-4">
-            <div>
-              <button class="btn btn-ghost" type="button"
-                      data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fa-solid fa-calendar fa-fw me-1"></i>
-                {{ selected_year }}
-                <i class="fa-solid fa-chevron-down fa-fw ms-1"></i>
-              </button>
-              <ul class="dropdown-menu menu">
-                {% for year in data.available_years %}
-                  <li>
-                    <button class="{% if year == selected_year %}menu-active{% endif %}" type="button"
-                            _="on click remove .menu-active from <li > button/> in the closest <ul/>
-                              then add .menu-active to me
-                              then set the value of #year-selector to '{{ year }}'
-                              then trigger change on #year-selector">
-                      {{ year }}
-                    </button>
-                  </li>
-                {% endfor %}
-              </ul>
-            </div>
-          </div>
-        {% endif %}
-        <div class="overflow-x-auto">
+  <div class="h-full text-center mb-4">
+    <div class="tabs tabs-box mx-auto w-fit" role="group" id="view-type-selector-month" _="on change trigger updated">
+      <label class="tab">
+        <input type="radio"
+               name="view_type"
+               autocomplete="off"
+               value="table"
+               aria-label="{% trans 'Table' %}"
+               {% if view_type == "table" %}checked{% endif %}>
+        <i class="fa-solid fa-table fa-fw me-2"></i>
+        {% trans 'Table' %}
+      </label>
+      <label class="tab">
+        <input type="radio"
+               name="view_type"
+               autocomplete="off"
+               value="graph"
+               aria-label="{% trans 'Graph' %}"
+               {% if view_type == "graph" %}checked{% endif %}>
+        <i class="fa-solid fa-chart-line fa-fw me-2"></i>
+        {% trans 'Graph' %}
+      </label>
+    </div>
+  </div>
 
-          <table class="table">
-            <thead>
+  <div class="mb-4">
+    <div>
+      <button class="btn btn-ghost" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fa-solid fa-wallet fa-fw me-1"></i>
+        {% if selected_account %}
+          {% for account in accounts %}
+            {% if account.id|stringformat:"s" == selected_account %}
+              {{ account.name }}
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          {% trans 'All' %}
+        {% endif %}
+        <i class="fa-solid fa-chevron-down fa-fw ms-1"></i>
+      </button>
+      <ul class="dropdown-menu menu">
+        <li>
+          <button class="{% if not selected_account %}menu-active{% endif %}" type="button"
+                  _="on click
+                    remove .menu-active from <li > button/> in the closest <ul/>
+                    then add .menu-active to me
+                    then set the value of #account-selector-month to ''
+                    then trigger change on #account-selector-month">
+            {% trans 'All' %}
+          </button>
+        </li>
+        {% for account in accounts %}
+          <li>
+            <button class="{% if account.id|stringformat:'s' == selected_account %}menu-active{% endif %}" type="button"
+                    _="on click
+                      remove .menu-active from <li > button/> in the closest <ul/>
+                      then add .menu-active to me
+                      then set the value of #account-selector-month to '{{ account.id }}'
+                      then trigger change on #account-selector-month">
+              {% if account.group %}<span class="badge badge-primary badge-outline">{{ account.group.name }}</span>{% endif %} {{ account.name }}
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  {% if data.periods %}
+    {% if view_type == "table" %}
+      <div class="card bg-base-100 card-border">
+        <div class="card-body">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
               <tr>
                 <th scope="col" class="sticky left-0 bg-base-100 z-10">
                   {% if group_by == "categories" %}
@@ -89,26 +127,12 @@
                   {% endif %}
                 </th>
                 <th scope="col" class="font-bold">{% trans 'Total' %}</th>
-                {% for month in data.months %}
-                  <th scope="col">
-                    {% if month == 1 %}{% trans 'Jan' %}
-                    {% elif month == 2 %}{% trans 'Feb' %}
-                    {% elif month == 3 %}{% trans 'Mar' %}
-                    {% elif month == 4 %}{% trans 'Apr' %}
-                    {% elif month == 5 %}{% trans 'May' %}
-                    {% elif month == 6 %}{% trans 'Jun' %}
-                    {% elif month == 7 %}{% trans 'Jul' %}
-                    {% elif month == 8 %}{% trans 'Aug' %}
-                    {% elif month == 9 %}{% trans 'Sep' %}
-                    {% elif month == 10 %}{% trans 'Oct' %}
-                    {% elif month == 11 %}{% trans 'Nov' %}
-                    {% elif month == 12 %}{% trans 'Dec' %}
-                    {% endif %}
-                  </th>
+                {% for period in data.periods %}
+                  <th scope="col">{{ period.label }}</th>
                 {% endfor %}
               </tr>
-            </thead>
-            <tbody>
+              </thead>
+              <tbody>
               {% for item_id, item in data.items.items %}
                 <tr>
                   <th class="text-nowrap sticky left-0 bg-base-100 z-10">
@@ -124,7 +148,6 @@
                       {% endif %}
                     {% endif %}
                   </th>
-                  {# Total column for this item #}
                   <td class="text-nowrap font-semibold bg-base-200">
                     {% for currency_id, currency_data in item.total.currencies.items %}
                       <c-amount.display
@@ -146,13 +169,12 @@
                       -
                     {% endfor %}
                   </td>
-                  {# Month columns #}
-                  {% for month in data.months %}
+                  {% for period in data.periods %}
                     <td class="text-nowrap">
-                      {% with month_data=item.month_totals %}
-                        {% for m, m_data in month_data.items %}
-                          {% if m == month %}
-                            {% for currency_id, currency_data in m_data.currencies.items %}
+                      {% with period_data=item.period_totals %}
+                        {% for p, p_data in period_data.items %}
+                          {% if p == period.key %}
+                            {% for currency_id, currency_data in p_data.currencies.items %}
                               <c-amount.display
                                   :amount="currency_data.final_total"
                                   :prefix="currency_data.currency.prefix"
@@ -180,11 +202,10 @@
                   {% endfor %}
                 </tr>
               {% endfor %}
-            </tbody>
-            <tfoot>
+              </tbody>
+              <tfoot>
               <tr class="font-bold bg-base-200">
                 <th class="sticky left-0 bg-base-200 z-10">{% trans 'Total' %}</th>
-                {# Grand total #}
                 <td class="text-nowrap bg-base-300">
                   {% for currency_id, currency_data in data.grand_total.currencies.items %}
                     <c-amount.display
@@ -206,13 +227,12 @@
                     -
                   {% endfor %}
                 </td>
-                {# Month totals #}
-                {% for month in data.months %}
+                {% for period in data.periods %}
                   <td class="text-nowrap">
-                    {% with month_total=data.month_totals %}
-                      {% for m, m_data in month_total.items %}
-                        {% if m == month %}
-                          {% for currency_id, currency_data in m_data.currencies.items %}
+                    {% with period_totals=data.period_totals %}
+                      {% for p, p_data in period_totals.items %}
+                        {% if p == period.key %}
+                          {% for currency_id, currency_data in p_data.currencies.items %}
                             <c-amount.display
                                 :amount="currency_data.final_total"
                                 :prefix="currency_data.currency.prefix"
@@ -239,12 +259,80 @@
                   </td>
                 {% endfor %}
               </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    {% else %}
+      <div class="card bg-base-100 card-border">
+        <div class="card-body">
+          <div class="chart-container relative min-h-[50vh] w-full" _="init call setupMonthByMonthChart() end">
+            <canvas id="monthByMonthChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      {{ data.chart|json_script:"monthByMonthChartData" }}
+
+      <script>
+          function setupMonthByMonthChart() {
+              const chartData = JSON.parse(document.getElementById('monthByMonthChartData').textContent);
+
+              new Chart(document.getElementById('monthByMonthChart'), {
+                  type: 'line',
+                  data: {
+                      labels: chartData.labels,
+                      datasets: chartData.datasets
+                  },
+                  options: {
+                      maintainAspectRatio: false,
+                      responsive: true,
+                      interaction: {
+                          mode: 'index',
+                          intersect: false
+                      },
+                      plugins: {
+                          legend: {
+                              position: 'top'
+                          },
+                          tooltip: {
+                              callbacks: {
+                                  label: function (context) {
+                                      const details = context.dataset.currency;
+                                      if (!details || context.parsed.y === null || context.parsed.y === undefined) {
+                                          return null;
+                                      }
+
+                                      let formattedValue = '';
+                                      try {
+                                          formattedValue = new Intl.NumberFormat(undefined, {
+                                              minimumFractionDigits: details.decimal_places,
+                                              maximumFractionDigits: details.decimal_places
+                                          }).format(context.parsed.y);
+                                      } catch (e) {
+                                          formattedValue = context.parsed.y;
+                                      }
+
+                                      return `${details.name}: ${details.prefix}${formattedValue}${details.suffix}`;
+                                  }
+                              }
+                          }
+                      },
+                      scales: {
+                          y: {
+                              title: {
+                                  display: true,
+                                  text: '{% trans 'Final Total' %}'
+                              }
+                          }
+                      }
+                  }
+              });
+          }
+      </script>
+    {% endif %}
   {% else %}
-    <c-msg.empty title="{% translate 'No transactions for this year' %}"></c-msg.empty>
+    <c-msg.empty title="{% translate 'No transactions' %}"></c-msg.empty>
   {% endif %}
 </div>
